@@ -8,7 +8,8 @@ class PNGCoin:
 
     def __init__(self, transfers):
         self.transfers = transfers  # Instances of PIL.Image
-        self.valid = self.validate_coin()
+        self.valid = None
+        self.validate_coin()
 
     @staticmethod
     def validate_txn(img):
@@ -21,11 +22,11 @@ class PNGCoin:
             return False
 
     def validate_coin(self):
+        self.valid = True
         for txfr in self.transfers:
             if not self.validate_txn(txfr):
-                return False
-
-        return True
+                self.valid = False
+                break
 
     @property
     def serialized(self):
@@ -35,15 +36,15 @@ class PNGCoin:
         with open(filename, "wb") as f:
             f.write(self.serialized)
 
-    @classmethod
-    def load(cls, coin_bytes):
+    @staticmethod
+    def load(coin_bytes):
         return pickle.loads(coin_bytes)
 
     @classmethod
     def load_from_disk(cls, filename):
         with open(filename, 'rb') as f:
             coin_bytes = f.read()
-            return PNGCoin.load(coin_bytes)
+            return cls.load(coin_bytes)
 
 
 if __name__ == "__main__":
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     ])
     print("'bad_coin' valid?:", bad_coin.valid, '\n')
 
-    # Save good boin to disk and load back into memory
+    # Save good coin to disk and load back into memory
     filename = 'bob.pngcoin'
     coin.to_disk(filename)
     bobs_coin = PNGCoin.load_from_disk(filename)
