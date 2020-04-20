@@ -1,3 +1,4 @@
+from pathlib import Path
 import pickle
 
 from PIL import Image
@@ -7,7 +8,7 @@ class PNGCoin:
 
     def __init__(self, transfers):
         self.transfers = transfers  # Instances of PIL.Image
-        self._valid = None
+        self.valid = self.validate_coin()
 
     @staticmethod
     def validate_txn(img):
@@ -25,13 +26,6 @@ class PNGCoin:
                 return False
 
         return True
-
-    @property
-    def valid(self):
-        if self._valid is None:
-            self._valid = self.validate_coin()
-
-        return self._valid
 
     @property
     def serialized(self):
@@ -53,18 +47,26 @@ class PNGCoin:
 
 
 if __name__ == "__main__":
+    images = Path("pngcoin_images")
+
+    # Create good coin
+    print("Creating 'coin'...")
     coin = PNGCoin([
-        Image.open("alice.png"),
-        Image.open("alice-to-bob.png"),
+        Image.open(images/"alice.png"),
+        Image.open(images/"alice-to-bob.png"),
     ])
+    print("'coin' valid?:", coin.valid, '\n')
 
+    # Create bad coin
+    print("Creating 'bad_coin'...")
     bad_coin = PNGCoin([
-        Image.open("alice.png"),
-        Image.open("alice-to-bob-forged.png"),
+        Image.open(images/"alice.png"),
+        Image.open(images/"alice-to-bob-forged.png"),
     ])
+    print("'bad_coin' valid?:", bad_coin.valid, '\n')
 
+    # Save good boin to disk and load back into memory
     filename = 'bob.pngcoin'
     coin.to_disk(filename)
     bobs_coin = PNGCoin.load_from_disk(filename)
-
     print("Verify loaded coin:", bobs_coin.transfers == coin.transfers)
