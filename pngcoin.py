@@ -41,9 +41,15 @@ class PNGCoin:
         with open(filename, "wb") as f:
             f.write(self.serialized)
 
+    @classmethod
+    def load(cls, coin_bytes):
+        return pickle.loads(coin_bytes)
 
-def load_coin(coin_bytes):
-    return pickle.loads(coin_bytes)
+    @classmethod
+    def load_from_disk(cls, filename):
+        with open(filename, 'rb') as f:
+            coin_bytes = f.read()
+            return PNGCoin.load(coin_bytes)
 
 
 if __name__ == "__main__":
@@ -59,7 +65,6 @@ if __name__ == "__main__":
 
     filename = 'bob.pngcoin'
     coin.to_disk(filename)
-    with open(filename, 'rb') as f:
-        bobs_coin = load_coin(f.read())
+    bobs_coin = PNGCoin.load_from_disk(filename)
 
-    print(bobs_coin.transfers)
+    print("Verify loaded coin:", bobs_coin.transfers == coin.transfers)
