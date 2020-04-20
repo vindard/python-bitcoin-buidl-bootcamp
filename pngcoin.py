@@ -1,3 +1,5 @@
+import pickle
+
 from PIL import Image
 
 
@@ -31,6 +33,14 @@ class PNGCoin:
 
         return self._valid
 
+    @property
+    def serialized(self):
+        return pickle.dumps(self)
+
+    def to_disk(self, filename):
+        with open(filename, "wb") as f:
+            f.write(self.serialized)
+
 
 if __name__ == "__main__":
     coin = PNGCoin([
@@ -43,5 +53,4 @@ if __name__ == "__main__":
         Image.open("alice-to-bob-forged.png"),
     ])
 
-    print(coin.valid)
-    print(bad_coin.valid)
+    coin.to_disk('bob.pngcoin')
