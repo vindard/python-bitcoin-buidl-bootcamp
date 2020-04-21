@@ -57,9 +57,9 @@ class Wallet:
         signature = self.private_key.sign(msg)
         txn = Transaction(signature, msg, prev_owner=self)
 
-        coin.transfer(txn)
-        wallet.receive(coin)
-        self.coins.pop()
+        if coin.transfer(txn):
+            wallet.receive(coin)
+            self.coins.pop()
 
         return coin
 
@@ -132,7 +132,15 @@ class ECDSACoin:
         public_key_bytes = latest_txn.public_key_bytes
         public_key = VerifyingKey.from_pem(public_key_bytes)
 
+        print(f"Coin has {len(self.transactions)} transaction(s)")
+
         return public_key
+
+    def owner_name(self, entities=None):
+        if entities is None:
+            entities = {}
+
+        return entities.get(self.owner.to_pem())
 
     @property
     def serialized(self):
@@ -156,7 +164,7 @@ class ECDSACoin:
         '''
         Automatically sends the oldest coin
         '''
-        prev_txn = self.transactions[0]
+        prev_txn = self.transactions[-1]
         msg_bytes = encode_msg(prev_txn, wallet)
 
         return msg_bytes
@@ -169,8 +177,12 @@ class ECDSACoin:
                 self.transactions.append(txn)
             else:
                 print("Previous signatures don't match")
+                return
         else:
             print("Transaction has bad signature")
+            return
+
+        return True
 
 
 if __name__ == "__main__":
@@ -187,6 +199,13 @@ if __name__ == "__main__":
     fake_bank = Bank()
     bad_coin = fake_bank.issue(alice)
     print("'bad_coin' valid?:", bad_coin.valid, '\n')
+
+    entities = {
+        alice.public_key.to_pem(): "Alice",
+        bob.public_key.to_pem(): "Bob",
+        fake_bank.public_key.to_pem(): "Fake Bank",
+        BANK.public_key.to_pem(): "Bank",
+    }
 
     # Save good coin to disk and load back into memory
     filename = 'alice.pngcoin'
