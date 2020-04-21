@@ -1,6 +1,7 @@
 from pathlib import Path
 import pickle
 
+from ecdsa import SigningKey, SECP256k1
 
 class Transaction:
 
@@ -44,6 +45,22 @@ class ECDSACoin:
         with open(filename, 'rb') as f:
             coin_bytes = f.read()
             return cls.load(coin_bytes)
+
+
+class Bank:
+
+    def __init__(self):
+        self.private_key = SigningKey.generate(curve=SECP256k1)
+
+    def issue(self, public_key):
+        msg = pickle.dumps(public_key)
+
+        signature = self.private_key.sign(msg)
+        txn = Transaction(signature, public_key)
+
+        coin = ECDSACoin([txn])
+
+        return coin
 
 
 if __name__ == "__main__":
