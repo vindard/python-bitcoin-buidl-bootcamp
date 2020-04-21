@@ -6,6 +6,11 @@ from ecdsa import SigningKey, VerifyingKey, SECP256k1, BadSignatureError
 
 
 def encode_msg(prev_txn, wallet):
+    '''
+    Creates a message and encodes it to bytes
+    format so that it can be passed to ecdsa
+    'sign' function.
+    '''
     prev_sig = None
     if prev_txn:
         prev_sig = prev_txn.signature.hex()
@@ -28,17 +33,38 @@ def decode_msg(msg_bytes):
         prev_sig = bytes.fromhex(prev_sig_hex)
 
     pub_key_str = msg['payee_public_key']
-    pub_key_pem = pub_key_str.encode()
-    pub_key = VerifyingKey.from_pem(pub_key_pem)
+    k = pub_key_str.encode()
 
-    return prev_sig, pub_key
+    return prev_sig, pub_key(k)
 
+def pub_key(public_key_bytes):
+    return VerifyingKey.from_pem(public_key_bytes)
+
+def priv_key(private_key_bytes):
+    return SigningKey.from_pem(private_key_bytes)
+
+def make_txn(coin, wallet, prev_owner):
+    prev_txn = coin.last_txn if coin else None
+    msg_bytes = encode_msg(prev_txn, wallet)
+    signature = prev_owner.private_key.sign(msg_bytes)
+
+    return Transaction(signature, wallet, prev_txn, prev_owner)
+
+def verify_sig(signature, msg_bytes, verifying_key_bytes):
+    try:
+        public_key = pub_key(verifying_key_bytes)
+        valid = public_key.verify(signature, msg_bytes)
+    except BadSignatureError:
+        valid = False
+
+    return valid
 
 class Wallet:
 
-    def __init__(self, owner="Anon"):
+    def __init__(self, owner_name="Anon"):
         self.private_key = SigningKey.generate(curve=SECP256k1)
         self.public_key = self.private_key.get_verifying_key()
+        self.owner_name = owner_name
         self.coins = []
 
     def receive(self, coin):
@@ -53,11 +79,11 @@ class Wallet:
             return
 
         coin = self.coins[-1]
-        msg = coin.encode_transfer_msg(wallet)
-        signature = self.private_key.sign(msg)
-        txn = Transaction(signature, msg, prev_owner=self)
+        txn = make_txn(coin, wallet, prev_owner=self)
 
-        if coin.transfer(txn):
+        ok, _ = coin.transfer(txn)
+        if ok:
+            print(f"Sending coin from '{self.owner_name}'' to '{wallet.owner_name}''")
             wallet.receive(coin)
             self.coins.pop()
 
@@ -66,14 +92,12 @@ class Wallet:
 
 class Bank(Wallet):
 
-    def __init__(self):
-        super().__init__(owner='Bank')
+    def __init__(self, owner_name=None):
+        owner_name = owner_name or "Official Bank"
+        super().__init__(owner_name)
 
     def issue(self, wallet):
-        msg_bytes = encode_msg(None, wallet)
-        signature = self.private_key.sign(msg_bytes)
-        txn = Transaction(signature, msg_bytes)
-
+        txn = make_txn(coin=None, wallet=wallet, prev_owner=self)
         coin = ECDSACoin([txn])
         wallet.receive(coin)
 
@@ -84,31 +108,30 @@ BANK = Bank()
 
 class Transaction:
 
-    def __init__(self, signature, msg, prev_owner=None):
-        self.signature = signature
-        self.msg = msg
-        _, public_key = decode_msg(msg)
-        self.public_key_bytes = public_key.to_pem()
+    def __init__(self, tx_signature, owner, prev_txn, prev_owner):
+        self.signature = tx_signature
+        self.prev_txn = prev_txn
+        self.msg_bytes = encode_msg(prev_txn, owner)
 
-        self.prev_owner_public_key_bytes = \
-            prev_owner.public_key.to_pem() if prev_owner else \
-            BANK.public_key.to_pem()
+        # Unpack to bytes to allow pickling of 'Transaction' class
+        self.owner_pub_key_bytes = owner.public_key.to_pem()
+        self.prev_pub_key_bytes = prev_owner.public_key.to_pem()
 
         self.valid = None
         self.validate_txn()
 
     def __eq__(self, other):
         sigs_equal = (self.signature == other.signature)
-        keys_equal = (self.msg == other.msg)
+        keys_equal = (self.msg_bytes == other.msg_bytes)
 
         return sigs_equal and keys_equal
 
     def validate_txn(self):
-        try:
-            pub_key = VerifyingKey.from_pem(self.prev_owner_public_key_bytes)
-            self.valid = pub_key.verify(self.signature, self.msg)
-        except BadSignatureError:
-            self.valid = False
+        self.valid = \
+            (self.prev_txn is not None or
+                pub_key(self.prev_pub_key_bytes) == BANK.public_key) \
+            and \
+            verify_sig(self.signature, self.msg_bytes, self.prev_pub_key_bytes)
 
 
 class ECDSACoin:
@@ -138,13 +161,10 @@ class ECDSACoin:
     @property
     def owner(self):
         latest_txn = self.transactions[-1]
-
-        public_key_bytes = latest_txn.public_key_bytes
-        public_key = VerifyingKey.from_pem(public_key_bytes)
+        k = latest_txn.owner_pub_key_bytes
 
         print(f"Coin has {len(self.transactions)} transaction(s)")
-
-        return public_key
+        return pub_key(k)
 
     def owner_name(self, entities=None):
         if entities is None:
@@ -160,6 +180,10 @@ class ECDSACoin:
         with open(filename, "wb") as f:
             f.write(self.serialized)
 
+    @property
+    def last_txn(self):
+        return self.transactions[-1]
+
     @staticmethod
     def load(coin_bytes):
         return pickle.loads(coin_bytes)
@@ -170,29 +194,25 @@ class ECDSACoin:
             coin_bytes = f.read()
             return cls.load(coin_bytes)
 
-    def encode_transfer_msg(self, wallet):
-        '''
-        Automatically sends the oldest coin
-        '''
-        prev_txn = self.transactions[-1]
-        msg_bytes = encode_msg(prev_txn, wallet)
-
-        return msg_bytes
 
     def transfer(self, txn):
+        ok, error_msg = True, ''
+
         if txn.valid:
-            prev_sig, _ = decode_msg(txn.msg)
+            prev_sig, _ = decode_msg(txn.msg_bytes)
             prev_txn = self.transactions[-1]
             if prev_sig == prev_txn.signature:
                 self.transactions.append(txn)
             else:
-                print("Previous signatures don't match")
-                return
+                ok = False
+                error_msg = "Previous signatures don't match"
         else:
-            print("Transaction has bad signature")
-            return
+            ok = False
+            error_msg = "Transaction has bad signature"
 
-        return True
+        if error_msg:
+            print(error_msg)
+        return ok, error_msg
 
 
 if __name__ == "__main__":
@@ -206,7 +226,7 @@ if __name__ == "__main__":
 
     # Create bad coin
     print("Creating 'bad_coin'...")
-    fake_bank = Bank()
+    fake_bank = Bank('Fake Bank')
     bad_coin = fake_bank.issue(alice)
     print("'bad_coin' valid?:", bad_coin.valid, '\n')
 
