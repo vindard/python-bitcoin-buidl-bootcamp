@@ -22,6 +22,7 @@ def decode_msg(msg_bytes):
     msg_json = msg_bytes.decode()
     msg = json.loads(msg_json)
 
+    prev_sig = None
     prev_sig_hex = msg['previous_signature']
     if prev_sig_hex:
         prev_sig = bytes.fromhex(prev_sig_hex)
@@ -54,7 +55,7 @@ class Wallet:
         coin = self.coins[-1]
         msg = coin.encode_transfer_msg(wallet)
         signature = self.private_key.sign(msg)
-        txn = Transaction(signature, msg, owner=self)
+        txn = Transaction(signature, msg, prev_owner=self)
 
         coin.transfer(txn)
         wallet.receive(coin)
@@ -83,12 +84,14 @@ BANK = Bank()
 
 class Transaction:
 
-
-    def __init__(self, signature, msg, owner=None):
+    def __init__(self, signature, msg, prev_owner=None):
         self.signature = signature
         self.msg = msg
-        self.owner_public_key_bytes = \
-            owner.public_key.to_pem() if owner else \
+        _, public_key = decode_msg(msg)
+        self.public_key_bytes = public_key.to_pem()
+
+        self.prev_owner_public_key_bytes = \
+            prev_owner.public_key.to_pem() if prev_owner else \
             BANK.public_key.to_pem()
 
         self.valid = None
@@ -102,7 +105,7 @@ class Transaction:
 
     def validate_txn(self):
         try:
-            pub_key = VerifyingKey.from_pem(self.owner_public_key_bytes)
+            pub_key = VerifyingKey.from_pem(self.prev_owner_public_key_bytes)
             self.valid = pub_key.verify(self.signature, self.msg)
         except BadSignatureError:
             self.valid = False
@@ -121,6 +124,15 @@ class ECDSACoin:
             if not txn.valid:
                 self.valid = False
                 break
+
+    @property
+    def owner(self):
+        latest_txn = self.transactions[-1]
+
+        public_key_bytes = latest_txn.public_key_bytes
+        public_key = VerifyingKey.from_pem(public_key_bytes)
+
+        return public_key
 
     @property
     def serialized(self):
