@@ -6,22 +6,30 @@ from ecdsa import SigningKey, SECP256k1, BadSignatureError
 
 class Wallet:
 
-    def __init__(self, owner):
+    def __init__(self, owner="Anon"):
         self.private_key = SigningKey.generate(curve=SECP256k1)
         self.public_key = self.private_key.get_verifying_key()
+        self.coins = []
+
+    def receive(self, coin):
+        if coin.valid:
+            self.coins.append(coin)
+        else:
+            print("Invalid coin passed, discarding...")
 
 class Bank(Wallet):
 
     def __init__(self):
         super().__init__(owner='Bank')
 
-    def issue(self, public_key):
-        msg = public_key.to_pem()
+    def issue(self, wallet):
+        msg = wallet.public_key.to_pem()
 
         signature = self.private_key.sign(msg)
-        txn = Transaction(signature, public_key)
+        txn = Transaction(signature, wallet.public_key)
 
         coin = ECDSACoin([txn])
+        wallet.receive(coin)
 
         return coin
 
@@ -90,13 +98,13 @@ if __name__ == "__main__":
 
     # Create good coin
     print("Creating 'coin'...")
-    coin = BANK.issue(alice.public_key)
+    coin = BANK.issue(alice)
     print("'coin' valid?:", coin.valid, '\n')
 
     # Create bad coin
     print("Creating 'bad_coin'...")
     fake_bank = Bank()
-    bad_coin = fake_bank.issue(alice.public_key)
+    bad_coin = fake_bank.issue(alice)
     print("'bad_coin' valid?:", bad_coin.valid, '\n')
 
     # Save good coin to disk and load back into memory
