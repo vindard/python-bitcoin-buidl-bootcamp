@@ -1,7 +1,22 @@
+import json
 from pathlib import Path
 import pickle
 
-from ecdsa import SigningKey, SECP256k1, BadSignatureError
+from ecdsa import SigningKey, VerifyingKey, SECP256k1, BadSignatureError
+
+
+def encode_msg(prev_txn, wallet):
+    prev_sig = None
+    if prev_txn:
+        prev_sig = prev_txn.signature.hex()
+
+    msg = {
+    'previous_signature': prev_sig,
+    'payee_public_key': wallet.public_key.to_pem().decode()
+    }
+    msg_bytes = json.dumps(msg).encode()
+
+    return msg_bytes
 
 
 class Wallet:
@@ -17,16 +32,16 @@ class Wallet:
         else:
             print("Invalid coin passed, discarding...")
 
+
 class Bank(Wallet):
 
     def __init__(self):
         super().__init__(owner='Bank')
 
     def issue(self, wallet):
-        msg = wallet.public_key.to_pem()
-
-        signature = self.private_key.sign(msg)
-        txn = Transaction(signature, wallet.public_key)
+        msg_bytes = encode_msg(None, wallet)
+        signature = self.private_key.sign(msg_bytes)
+        txn = Transaction(signature, msg_bytes)
 
         coin = ECDSACoin([txn])
         wallet.receive(coin)
@@ -39,22 +54,26 @@ BANK = Bank()
 class Transaction:
 
 
-    def __init__(self, signature, public_key):
+    def __init__(self, signature, msg, owner=None):
         self.signature = signature
-        self.public_key_bytes = public_key.to_pem()
+        self.msg = msg
+        self.owner_public_key_bytes = \
+            owner.public_key.to_pem() if owner else \
+            BANK.public_key.to_pem()
 
         self.valid = None
         self.validate_txn()
 
     def __eq__(self, other):
         sigs_equal = (self.signature == other.signature)
-        keys_equal = (self.public_key_bytes == other.public_key_bytes)
+        keys_equal = (self.msg == other.msg)
 
         return sigs_equal and keys_equal
 
     def validate_txn(self):
         try:
-            self.valid = BANK.public_key.verify(self.signature, self.public_key_bytes)
+            pub_key = VerifyingKey.from_pem(self.owner_public_key_bytes)
+            self.valid = pub_key.verify(self.signature, self.msg)
         except BadSignatureError:
             self.valid = False
 
