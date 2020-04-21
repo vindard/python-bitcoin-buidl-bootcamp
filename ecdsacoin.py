@@ -113,6 +113,16 @@ class Transaction:
 
 class ECDSACoin:
 
+    '''
+    Note: 'to_pem' is used for any private/public keys stored
+    with this class because the non-pem objects can't be pickled
+    to be stored on disk.
+
+    The keys can be retrieved by simply calling the 'from_pem'
+    method on the SigningKey/Verifying objects and passing in the
+    pem bytes version of they key to it.
+    '''
+
     def __init__(self, transactions):
         self.transactions = transactions
         self.valid = None
