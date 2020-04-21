@@ -1,30 +1,22 @@
 from pathlib import Path
 import pickle
 
-from PIL import Image
 
+class ECDSACoin:
 
-class PNGCoin:
-
-    def __init__(self, transfers):
-        self.transfers = transfers  # Instances of PIL.Image
+    def __init__(self, transactions):
+        self.transactions = transactions
         self.valid = None
         self.validate_coin()
 
     @staticmethod
-    def validate_txn(img):
-        img.show()
-
-        user_input = input("Is this a valid signature? (Y/n): ")
-        if user_input.lower() == "y":
-            return True
-        else:
-            return False
+    def validate_txn(txn):
+        pass
 
     def validate_coin(self):
         self.valid = True
-        for txfr in self.transfers:
-            if not self.validate_txn(txfr):
+        for txn in self.transactions:
+            if not self.validate_txn(txn):
                 self.valid = False
                 break
 
@@ -48,26 +40,18 @@ class PNGCoin:
 
 
 if __name__ == "__main__":
-    images = Path("pngcoin_images")
-
     # Create good coin
     print("Creating 'coin'...")
-    coin = PNGCoin([
-        Image.open(images/"alice.png"),
-        Image.open(images/"alice-to-bob.png"),
-    ])
+    coin = ECDSACoin([])
     print("'coin' valid?:", coin.valid, '\n')
 
     # Create bad coin
     print("Creating 'bad_coin'...")
-    bad_coin = PNGCoin([
-        Image.open(images/"alice.png"),
-        Image.open(images/"alice-to-bob-forged.png"),
-    ])
+    bad_coin = ECDSACoin([])
     print("'bad_coin' valid?:", bad_coin.valid, '\n')
 
     # Save good coin to disk and load back into memory
     filename = 'bob.pngcoin'
     coin.to_disk(filename)
-    bobs_coin = PNGCoin.load_from_disk(filename)
-    print("Verify loaded coin:", bobs_coin.transfers == coin.transfers)
+    bobs_coin = ECDSACoin.load_from_disk(filename)
+    print("Verify loaded coin:", bobs_coin.transactions == coin.transactions)
