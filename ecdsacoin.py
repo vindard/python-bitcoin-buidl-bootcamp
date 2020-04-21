@@ -2,6 +2,13 @@ from pathlib import Path
 import pickle
 
 
+class Transaction:
+
+    def __init__(self, signature, public_key):
+        self.signature = signature
+        self.public_key = public_key
+
+
 class ECDSACoin:
 
     def __init__(self, transactions):
