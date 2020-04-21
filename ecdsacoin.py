@@ -16,7 +16,7 @@ class Bank(Wallet):
         super().__init__(owner='Bank')
 
     def issue(self, public_key):
-        msg = pickle.dumps(public_key)
+        msg = public_key.to_pem()
 
         signature = self.private_key.sign(msg)
         txn = Transaction(signature, public_key)
@@ -33,15 +33,14 @@ class Transaction:
 
     def __init__(self, signature, public_key):
         self.signature = signature
-        self.public_key = public_key
-        self.msg = pickle.dumps(public_key)
+        self.public_key_bytes = public_key.to_pem()
 
         self.valid = None
         self.validate_txn()
 
     def validate_txn(self):
         try:
-            self.valid = BANK.public_key.verify(self.signature, self.msg)
+            self.valid = BANK.public_key.verify(self.signature, self.public_key_bytes)
         except BadSignatureError:
             self.valid = False
 
