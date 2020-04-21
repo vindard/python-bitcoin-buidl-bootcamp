@@ -32,6 +32,22 @@ class Wallet:
         else:
             print("Invalid coin passed, discarding...")
 
+    def send(self, wallet):
+        if not self.coins:
+            print("No coins to spend")
+            return
+
+        coin = self.coins[-1]
+        msg = coin.encode_transfer_msg(wallet)
+        signature = self.private_key.sign(msg)
+        txn = Transaction(signature, msg, owner=self)
+
+        coin.transfer(txn)
+        wallet.receive(coin)
+        self.coins.pop()
+
+        return coin
+
 
 class Bank(Wallet):
 
@@ -109,6 +125,19 @@ class ECDSACoin:
         with open(filename, 'rb') as f:
             coin_bytes = f.read()
             return cls.load(coin_bytes)
+
+    def encode_transfer_msg(self, wallet):
+        '''
+        Automatically sends the oldest coin
+        '''
+        prev_txn = self.transactions[0]
+        msg_bytes = encode_msg(prev_txn, wallet)
+
+        return msg_bytes
+
+    def transfer(self, txn):
+        if txn.valid:
+            self.transactions.append(txn)
 
 
 if __name__ == "__main__":
