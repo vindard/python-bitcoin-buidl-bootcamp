@@ -3,10 +3,33 @@ import pickle
 
 from ecdsa import SigningKey, SECP256k1, BadSignatureError
 
+
+class Wallet:
+
+    def __init__(self, owner):
+        self.private_key = SigningKey.generate(curve=SECP256k1)
+        self.public_key = self.private_key.get_verifying_key()
+
+class Bank(Wallet):
+
+    def __init__(self):
+        super().__init__(owner='Bank')
+
+    def issue(self, public_key):
+        msg = pickle.dumps(public_key)
+
+        signature = self.private_key.sign(msg)
+        txn = Transaction(signature, public_key)
+
+        coin = ECDSACoin([txn])
+
+        return coin
+
+
 BANK = Bank()
 
-
 class Transaction:
+
 
     def __init__(self, signature, public_key):
         self.signature = signature
@@ -56,36 +79,23 @@ class ECDSACoin:
             return cls.load(coin_bytes)
 
 
-class Bank:
-
-    def __init__(self):
-        self.private_key = SigningKey.generate(curve=SECP256k1)
-        self.public_key = self.private_key.get_verifying_key()
-
-    def issue(self, public_key):
-        msg = pickle.dumps(public_key)
-
-        signature = self.private_key.sign(msg)
-        txn = Transaction(signature, public_key)
-
-        coin = ECDSACoin([txn])
-
-        return coin
-
-
 if __name__ == "__main__":
+    alice = Wallet('Alice')
+    bob = Wallet('Bob')
+
     # Create good coin
     print("Creating 'coin'...")
-    coin = ECDSACoin([])
+    coin = BANK.issue(alice.public_key)
     print("'coin' valid?:", coin.valid, '\n')
 
     # Create bad coin
     print("Creating 'bad_coin'...")
-    bad_coin = ECDSACoin([])
+    fake_bank = Bank()
+    bad_coin = fake_bank.issue(alice.public_key)
     print("'bad_coin' valid?:", bad_coin.valid, '\n')
 
     # Save good coin to disk and load back into memory
-    filename = 'bob.pngcoin'
+    filename = 'alice.pngcoin'
     coin.to_disk(filename)
-    bobs_coin = ECDSACoin.load_from_disk(filename)
-    print("Verify loaded coin:", bobs_coin.transactions == coin.transactions)
+    alice_coin = ECDSACoin.load_from_disk(filename)
+    print("Verify loaded coin:", alice_coin.transactions == coin.transactions)
