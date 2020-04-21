@@ -18,6 +18,20 @@ def encode_msg(prev_txn, wallet):
 
     return msg_bytes
 
+def decode_msg(msg_bytes):
+    msg_json = msg_bytes.decode()
+    msg = json.loads(msg_json)
+
+    prev_sig_hex = msg['previous_signature']
+    if prev_sig_hex:
+        prev_sig = bytes.fromhex(prev_sig_hex)
+
+    pub_key_str = msg['payee_public_key']
+    pub_key_pem = pub_key_str.encode()
+    pub_key = VerifyingKey.from_pem(pub_key_pem)
+
+    return prev_sig, pub_key
+
 
 class Wallet:
 
@@ -137,7 +151,14 @@ class ECDSACoin:
 
     def transfer(self, txn):
         if txn.valid:
-            self.transactions.append(txn)
+            prev_sig, _ = decode_msg(txn.msg)
+            prev_txn = self.transactions[-1]
+            if prev_sig == prev_txn.signature:
+                self.transactions.append(txn)
+            else:
+                print("Previous signatures don't match")
+        else:
+            print("Transaction has bad signature")
 
 
 if __name__ == "__main__":
