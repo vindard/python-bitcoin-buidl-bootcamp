@@ -1,13 +1,26 @@
 from pathlib import Path
 import pickle
 
-from ecdsa import SigningKey, SECP256k1
+from ecdsa import SigningKey, SECP256k1, BadSignatureError
+
+BANK = Bank()
+
 
 class Transaction:
 
     def __init__(self, signature, public_key):
         self.signature = signature
         self.public_key = public_key
+        self.msg = pickle.dumps(public_key)
+
+        self.valid = None
+        self.validate_txn()
+
+    def validate_txn(self):
+        try:
+            self.valid = BANK.public_key.verify(self.signature, self.msg)
+        except BadSignatureError:
+            self.valid = False
 
 
 class ECDSACoin:
@@ -17,14 +30,10 @@ class ECDSACoin:
         self.valid = None
         self.validate_coin()
 
-    @staticmethod
-    def validate_txn(txn):
-        pass
-
     def validate_coin(self):
         self.valid = True
         for txn in self.transactions:
-            if not self.validate_txn(txn):
+            if not txn.valid:
                 self.valid = False
                 break
 
@@ -51,6 +60,7 @@ class Bank:
 
     def __init__(self):
         self.private_key = SigningKey.generate(curve=SECP256k1)
+        self.public_key = self.private_key.get_verifying_key()
 
     def issue(self, public_key):
         msg = pickle.dumps(public_key)
