@@ -38,6 +38,12 @@ class Transaction:
         self.valid = None
         self.validate_txn()
 
+    def __eq__(self, other):
+        sigs_equal = (self.signature == other.signature)
+        keys_equal = (self.public_key_bytes == other.public_key_bytes)
+
+        return sigs_equal and keys_equal
+
     def validate_txn(self):
         try:
             self.valid = BANK.public_key.verify(self.signature, self.public_key_bytes)
