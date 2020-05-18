@@ -117,8 +117,8 @@ class Transaction:
         self.owner_pub_key_bytes = owner.public_key.to_pem()
         self.prev_pub_key_bytes = prev_owner.public_key.to_pem()
 
-        self.valid = None
-        self.validate_txn()
+        self._valid = None
+
 
     def __eq__(self, other):
         sigs_equal = (self.signature == other.signature)
@@ -126,8 +126,14 @@ class Transaction:
 
         return sigs_equal and keys_equal
 
+    @property
+    def valid(self):
+        self.validate_txn()
+
+        return self._valid
+
     def validate_txn(self):
-        self.valid = \
+        self._valid = \
             (self.prev_txn is not None or
                 pub_key(self.prev_pub_key_bytes) == BANK.public_key) \
             and \
@@ -148,14 +154,20 @@ class ECDSACoin:
 
     def __init__(self, transactions):
         self.transactions = transactions
-        self.valid = None
+        self._valid = None
+
+
+    @property
+    def valid(self):
         self.validate_coin()
 
+        return self._valid
+
     def validate_coin(self):
-        self.valid = True
+        self._valid = True
         for txn in self.transactions:
             if not txn.valid:
-                self.valid = False
+                self._valid = False
                 break
 
     @property
@@ -192,7 +204,8 @@ class ECDSACoin:
     def load_from_disk(cls, filename):
         with open(filename, 'rb') as f:
             coin_bytes = f.read()
-            return cls.load(coin_bytes)
+
+        return cls.load(coin_bytes)
 
 
     def transfer(self, txn):
@@ -212,6 +225,7 @@ class ECDSACoin:
 
         if error_msg:
             print(error_msg)
+
         return ok, error_msg
 
 
