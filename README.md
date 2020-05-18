@@ -9,9 +9,13 @@ The different steps in getting to Bitcoin will be:
 
     Run with: `$ python3 pngcoin.py`
 
-1. ***ECDSACoin***
+1. [**ECDSACoin**](https://github.com/vindard/python-bitcoin-buidl-bootcamp/pull/2)
 
-    *To be implemented...*
+    ECDSACoin improves on PNGCoin by swapping out physical signatures for digital cryptographically-robust `ecdsa` signatures. These digital signatures are a significant improvement in terms of being robust against fakes and forgery. A transfer is now a cryptographiccally signed message about the sender and recipient instead of a png image of simple handwritten statement of same.
+
+    A 'coin' is also still a chain of transactions in this implementation, but instead of merely being a loosely coupled list of images we now include information about the previous transaction and hash this information into the transaction to cryptographically chain transactions together. This again gives us a much more robust and forgery-resistant chain of transactions to represent how the coin has moved since its minting.
+
+    Run with: `$ python3 ecdsacoin.py`
 
 1. ***BankCoin***
 
